@@ -1,0 +1,21 @@
+[features]
+seeds = false
+skip-lint = false
+
+[programs.localnet]
+transfer_hook = "GZECJn35vbFrnah7kbXAyi9EKFRKNRy2C1M72aXwPi1q"
+
+[programs.devnet]
+transfer_hook = "GZECJn35vbFrnah7kbXAyi9EKFRKNRy2C1M72aXwPi1q"
+
+[registry]
+url = "https://api.apr.dev"
+
+
+[provider]
+cluster = "devnet"
+wallet = "/home/sks123456/sam-token/transfer-hook/target/deploy/devnet_key/wallet-keypair.json"
+
+[scripts]
+test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
+client = "yarn run ts-node client/*.ts"
