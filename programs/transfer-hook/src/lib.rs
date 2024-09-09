@@ -2,24 +2,22 @@ use anchor_lang::{
     prelude::*,
     system_program::{create_account, CreateAccount},
 };
-
 use anchor_spl::{
     associated_token::AssociatedToken,
     token_interface::{Mint, TokenAccount, TokenInterface},
 };
 use spl_tlv_account_resolution::{
-    account::ExtraAccountMeta, // <-- Correct Import for ExtraAccountMeta
-    seeds::Seed,
-    state::ExtraAccountMetaList,
+    account::ExtraAccountMeta, seeds::Seed, state::ExtraAccountMetaList,
 };
 use spl_transfer_hook_interface::instruction::{ExecuteInstruction, TransferHookInstruction};
 
 declare_id!("GZECJn35vbFrnah7kbXAyi9EKFRKNRy2C1M72aXwPi1q");
 
+
 #[error_code]
-pub enum MyErrorCode {
-    #[msg("Amount must be less than 50")]
-    AmmountTooLarge,
+pub enum MyError {
+    #[msg("The amount is too big")]
+    AmountTooBig,
 }
 
 #[program]
@@ -29,14 +27,17 @@ pub mod transfer_hook {
     pub fn initialize_extra_account_meta_list(
         ctx: Context<InitializeExtraAccountMetaList>,
     ) -> Result<()> {
+
         // The `addExtraAccountsToInstruction` JS helper function resolving incorrectly
-        let account_metas = vec![ExtraAccountMeta::new_with_seeds(
-            &[Seed::Literal {
-                bytes: "counter".as_bytes().to_vec(),
-            }],
-            false,
-            true,
-        )?];
+        let account_metas = vec![
+            ExtraAccountMeta::new_with_seeds(
+                &[Seed::Literal {
+                    bytes: "counter".as_bytes().to_vec(),
+                }],
+                false, // is_signer
+                true,  // is_writable
+            )?,
+        ];
 
         // calculate account size
         let account_size = ExtraAccountMetaList::size_of(account_metas.len())? as u64;
@@ -58,7 +59,8 @@ pub mod transfer_hook {
                     from: ctx.accounts.payer.to_account_info(),
                     to: ctx.accounts.extra_account_meta_list.to_account_info(),
                 },
-            ).with_signer(signer_seeds),
+            )
+            .with_signer(signer_seeds),
             lamports,
             account_size,
             ctx.program_id,
@@ -74,20 +76,16 @@ pub mod transfer_hook {
     }
 
     pub fn transfer_hook(ctx: Context<TransferHook>, amount: u64) -> Result<()> {
+
         if amount > 50 {
-            //return err!(MyErrorCode::AmmountTooLarge);
+            msg!("The amount is too big {0}", amount);
+        //    return err!(MyError::AmountTooBig);
         }
 
-        //increment counter
-        ctx.accounts.counter.count += 1;
+        ctx.accounts.counter_account.counter += 1;
 
-        msg!(
-            "Token has been transfered {} times ",
-            ctx.accounts.counter.count
-        );
-
-        msg!("Hello Transfer Hook!");
-
+        msg!("This token has been transfered {0} times", ctx.accounts.counter_account.counter);
+       
         Ok(())
     }
 
@@ -99,7 +97,7 @@ pub mod transfer_hook {
     ) -> Result<()> {
         let instruction = TransferHookInstruction::unpack(data)?;
 
-        // match instruction discriminator to transfer hook interface execute instruction
+        // match instruction discriminator to transfer hook interface execute instruction  
         // token2022 program CPIs this instruction on token transfer
         match instruction {
             TransferHookInstruction::Execute { amount } => {
@@ -126,17 +124,17 @@ pub struct InitializeExtraAccountMetaList<'info> {
     )]
     pub extra_account_meta_list: AccountInfo<'info>,
     pub mint: InterfaceAccount<'info, Mint>,
+    #[account(
+        init_if_needed,
+        seeds = [b"counter"], 
+        bump,
+        payer = payer,
+        space = 9
+    )]
+    pub counter_account: Account<'info, CounterAccount>,
     pub token_program: Interface<'info, TokenInterface>,
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
-    #[account(
-        init,
-        payer = payer,
-        seeds = [b"counter"],
-        bump,
-        space = 16,
-    )]
-    pub counter: Account<'info, Counter>,
 }
 
 // Order of accounts matters for this struct.
@@ -164,12 +162,13 @@ pub struct TransferHook<'info> {
     )]
     pub extra_account_meta_list: UncheckedAccount<'info>,
     #[account(
-        seeds = [b"counter"], 
+        seeds = [b"counter"],
         bump
     )]
-    pub counter: Account<'info, Counter>,
+    pub counter_account: Account<'info, CounterAccount>,
 }
+
 #[account]
-pub struct Counter {
-    pub count: u64,
+pub struct CounterAccount {
+    counter: u8,
 }
